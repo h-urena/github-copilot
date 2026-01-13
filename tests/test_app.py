@@ -119,3 +119,54 @@ def test_root_redirect():
     response = client_no_redirect.get("/")
     assert response.status_code == 307  # Temporary redirect
     assert "/static/index.html" in response.headers["location"]
+
+def test_activity_capacity_limit():
+    """Test that signup fails when activity reaches max capacity"""
+    # Use an activity with low capacity
+    activity_name = "Chess Club"  # Has max_participants: 12, but already has 2 participants
+
+    # Fill up the remaining spots (12 - 2 = 10 spots left)
+    for i in range(10):
+        response = client.post(
+            f"/activities/{activity_name}/signup",
+            params={"email": f"student{i}@test.edu"}
+        )
+        assert response.status_code == 200
+
+    # Try to sign up one more (should fail)
+    response = client.post(
+        f"/activities/{activity_name}/signup",
+        params={"email": "overflow@test.edu"}
+    )
+    assert response.status_code == 400
+    data = response.json()
+    assert "capacity" in data["detail"].lower() or "full" in data["detail"].lower()
+
+def test_static_files_served():
+    """Test that static files are served correctly"""
+    # Test HTML file
+    response = client.get("/static/index.html")
+    assert response.status_code == 200
+    assert "Mergington High School" in response.text
+    assert "Extracurricular Activities" in response.text
+
+    # Test CSS file
+    response = client.get("/static/styles.css")
+    assert response.status_code == 200
+    assert "box-sizing" in response.text
+
+    # Test JS file
+    response = client.get("/static/app.js")
+    assert response.status_code == 200
+    assert "DOMContentLoaded" in response.text
+
+def test_signup_empty_email():
+    """Test signup with empty email"""
+    activity_name = "Basketball Team"
+    response = client.post(
+        f"/activities/{activity_name}/signup",
+        params={"email": ""}
+    )
+    # This should either fail validation or succeed depending on implementation
+    # For now, just check it doesn't crash
+    assert response.status_code in [200, 400]
